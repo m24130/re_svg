@@ -15,12 +15,20 @@ class _ReSvgSync {
   bool _closed = false;
   _ReSvgSync._(this._tree, this.size, this._transform);
 
-  static _ReSvgSync from(String data) {
+  static _ReSvgSync? from(String data) {
     final str = data.toNativeUtf8();
     final options = _bindings.resvg_options_create();
+    _bindings.resvg_options_load_system_fonts(options);
     final tree = malloc<Pointer<resvg_render_tree>>();
-    _bindings.resvg_parse_tree_from_data(str.cast(), str.length, options, tree);
+    final err = _bindings.resvg_parse_tree_from_data(
+        str.cast(), str.length, options, tree);
+    malloc.free(str);
     _bindings.resvg_options_destroy(options);
+
+    if (err != 0) {
+      malloc.free(tree);
+      return null;
+    }
 
     final rawSize = _bindings.resvg_get_image_size(tree.value);
     final size = Size(rawSize.width, rawSize.height);
@@ -117,7 +125,7 @@ class ReSvg {
           } else {
             decodeImageFromPixels(pixels.asTypedList(message.length),
                 message.width, message.height, PixelFormat.rgba8888, (image) {
-              malloc.free(pixels);
+              calloc.free(pixels);
               completer.complete(image);
             });
           }
