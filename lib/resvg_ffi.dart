@@ -31,11 +31,11 @@ class _ReSvgSync {
   }
 
   (Pointer<Uint8>, int)? render(int width, int height) {
-    if (_closed) return null;
+    if (_closed || width <= 0 || height <= 0) return null;
     _transform.a = width / size.width;
     _transform.d = height / size.height;
     final length = width * height * 4;
-    final pixels = malloc<Uint8>(length);
+    final pixels = calloc<Uint8>(length);
     _bindings.resvg_render(
         _tree.value, _transform, width, height, pixels.cast());
 
