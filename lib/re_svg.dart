@@ -9,7 +9,17 @@ class SvgView extends StatefulWidget {
   final String data;
   final bool intrinsic;
 
-  const SvgView({super.key, required this.data, this.intrinsic = false});
+  /// Optional custom fonts to register before parsing. Required when the
+  /// SVG contains `<text>` referencing a font that is not installed on
+  /// the host OS.
+  final ResvgFonts fonts;
+
+  const SvgView({
+    super.key,
+    required this.data,
+    this.intrinsic = false,
+    this.fonts = ResvgFonts.systemOnly,
+  });
   @override
   State<SvgView> createState() => _SvgViewState();
 }
@@ -20,16 +30,16 @@ class _SvgViewState extends State<SvgView> {
   @override
   void initState() {
     super.initState();
-    _reSvg = ReSvg.spawn(widget.data);
+    _reSvg = ReSvg.spawn(widget.data, fonts: widget.fonts);
   }
 
   @override
   void didUpdateWidget(oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (widget.data != oldWidget.data) {
+    if (widget.data != oldWidget.data || widget.fonts != oldWidget.fonts) {
       _clean();
-      _reSvg = ReSvg.spawn(widget.data);
+      _reSvg = ReSvg.spawn(widget.data, fonts: widget.fonts);
     }
   }
 

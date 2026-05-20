@@ -2,11 +2,40 @@ import 'dart:async';
 import 'dart:ffi' hide Size;
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:ffi/ffi.dart';
 
 import 'resvg_bindings_generated.dart';
+
+/// Configuration for custom fonts passed to resvg.
+///
+/// Each entry is a raw TTF/OTF blob loaded by the caller (e.g. via
+/// `rootBundle.load(...).buffer.asUint8List()`).
+///
+/// resvg copies the bytes into its internal fontdb, so the buffer does
+/// not need to outlive the parse call.
+class ResvgFonts {
+  /// Raw font data blobs to register before parsing.
+  final List<Uint8List> data;
+
+  /// Optional default sans-serif family used when an SVG `<text>` element
+  /// does not specify `font-family` (or specifies one that is not loaded).
+  final String? defaultFamily;
+
+  /// When true, also register the operating-system fonts. Set to false to
+  /// guarantee deterministic rendering across hosts.
+  final bool loadSystemFonts;
+
+  const ResvgFonts({
+    this.data = const [],
+    this.defaultFamily,
+    this.loadSystemFonts = true,
+  });
+
+  static const ResvgFonts systemOnly = ResvgFonts();
+}
 
 class _ReSvgSync {
   final Pointer<Pointer<resvg_render_tree>> _tree;
@@ -15,10 +44,32 @@ class _ReSvgSync {
   bool _closed = false;
   _ReSvgSync._(this._tree, this.size, this._transform);
 
-  static _ReSvgSync? from(String data) {
+  static _ReSvgSync? from(String data, ResvgFonts fonts) {
     final str = data.toNativeUtf8();
     final options = _bindings.resvg_options_create();
-    _bindings.resvg_options_load_system_fonts(options);
+
+    if (fonts.loadSystemFonts) {
+      _bindings.resvg_options_load_system_fonts(options);
+    }
+
+    // Register custom font blobs. resvg copies the bytes internally, so
+    // we free our scratch buffers right after the call.
+    for (final blob in fonts.data) {
+      if (blob.isEmpty) continue;
+      final buf = malloc<Uint8>(blob.length);
+      buf.asTypedList(blob.length).setAll(0, blob);
+      _bindings.resvg_options_load_font_data(
+          options, buf.cast(), blob.length);
+      malloc.free(buf);
+    }
+
+    final defaultFamily = fonts.defaultFamily;
+    if (defaultFamily != null && defaultFamily.isNotEmpty) {
+      final famStr = defaultFamily.toNativeUtf8();
+      _bindings.resvg_options_set_font_family(options, famStr.cast());
+      malloc.free(famStr);
+    }
+
     final tree = malloc<Pointer<resvg_render_tree>>();
     final err = _bindings.resvg_parse_tree_from_data(
         str.cast(), str.length, options, tree);
@@ -84,7 +135,10 @@ class ReSvg {
     return await completer.future;
   }
 
-  static Future<ReSvg> spawn(String data) async {
+  static Future<ReSvg> spawn(
+    String data, {
+    ResvgFonts fonts = ResvgFonts.systemOnly,
+  }) async {
     final initPort = RawReceivePort();
     final connection = Completer<(ReceivePort, SendPort)>.sync();
     initPort.handler = (initialMessage) {
@@ -105,7 +159,7 @@ class ReSvg {
     final (ReceivePort receivePort, SendPort sendPort) =
         await connection.future;
 
-    sendPort.send(_CreateRequest(data));
+    sendPort.send(_CreateRequest(data, fonts));
 
     return ReSvg._(receivePort, sendPort);
   }
@@ -147,7 +201,7 @@ class ReSvg {
         receivePort.close();
         rss?.close();
       } else if (message is _CreateRequest) {
-        rss = _ReSvgSync.from(message.data);
+        rss = _ReSvgSync.from(message.data, message.fonts);
       } else if (message is _RenderRequest) {
         final result = rss?.render(message.width, message.height);
         if (result == null) {
@@ -226,8 +280,9 @@ class _SizeResponse extends _Identifiable {
 
 class _CreateRequest {
   final String data;
+  final ResvgFonts fonts;
 
-  const _CreateRequest(this.data);
+  const _CreateRequest(this.data, this.fonts);
 }
 
 class _Shutdown {}
