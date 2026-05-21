@@ -1,5 +1,8 @@
-// Copyright 2021 the Resvg Authors
-// SPDX-License-Identifier: Apache-2.0 OR MIT
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 
 /**
  * @file resvg.h
@@ -14,9 +17,9 @@
 #include <stdint.h>
 
 #define RESVG_MAJOR_VERSION 0
-#define RESVG_MINOR_VERSION 47
+#define RESVG_MINOR_VERSION 42
 #define RESVG_PATCH_VERSION 0
-#define RESVG_VERSION "0.47.0"
+#define RESVG_VERSION "0.42.0"
 
 /**
  * @brief List of possible errors.
@@ -172,15 +175,6 @@ void resvg_options_set_resources_dir(resvg_options *opt, const char *path);
  * Default: 96
  */
 void resvg_options_set_dpi(resvg_options *opt, float dpi);
-
-/**
- * @brief Provides the content of a stylesheet that will be used when resolving CSS attributes.
- *
- * Must be UTF-8. Can be set to NULL.
- *
- * Default: NULL
- */
-void resvg_options_set_stylesheet(resvg_options *opt, const char *content);
 
 /**
  * @brief Sets the default font family.
@@ -381,10 +375,9 @@ bool resvg_is_image_empty(const resvg_render_tree *tree);
 /**
  * @brief Returns an image size.
  *
- * The size of an image that is required to render this SVG.
+ * The size of a canvas that required to render this SVG.
  *
- * Note that elements outside the viewbox will be clipped. This is by design.
- * If you want to render the whole SVG content, use #resvg_get_image_bbox instead.
+ * The `width` and `height` attributes in SVG.
  *
  * @param tree Render tree.
  * @return Image size.
@@ -392,25 +385,9 @@ bool resvg_is_image_empty(const resvg_render_tree *tree);
 resvg_size resvg_get_image_size(const resvg_render_tree *tree);
 
 /**
- * @brief Returns an object bounding box.
- *
- * This bounding box does not include objects stroke and filter regions.
- * This is what SVG calls "absolute object bonding box".
- *
- * If you're looking for a "complete" bounding box see #resvg_get_image_bbox
- *
- * @param tree Render tree.
- * @param bbox Image's object bounding box.
- * @return `false` if an image has no elements.
- */
-bool resvg_get_object_bbox(const resvg_render_tree *tree, resvg_rect *bbox);
-
-/**
  * @brief Returns an image bounding box.
  *
- * This bounding box contains the maximum SVG dimensions.
- * It's size can be bigger or smaller than #resvg_get_image_size
- * Use it when you want to avoid clipping of elements that are outside the SVG viewbox.
+ * Can be smaller or bigger than a `viewbox`.
  *
  * @param tree Render tree.
  * @param bbox Image's bounding box.
